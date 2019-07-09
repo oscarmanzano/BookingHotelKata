@@ -1,0 +1,119 @@
+import org.junit.Before;
+import org.junit.Test;
+import org.mockito.Mock;
+
+import static org.junit.Assert.*;
+import static org.mockito.Mockito.when;
+
+public class BookingPolicyFeature {
+
+    private static final int COMPANY_ID = 1;
+    private static final int HOTEL_ID = 1;
+    private static final int EMPLOYEE_ID = 1;
+    private static final int NON_EXISTING_EMPLOYEE = 2;
+
+    private static final String NOT_ALLOWED_ROOM_TYPE = "single";
+    private static final String ALLOWED_ROOM_TYPE = "double";
+
+    private static final String ROOM_TYPE_1 = "junior";
+    private static final String ROOM_TYPE_2 = "suite";
+
+    private boolean isBookingAllow;
+
+    private CompanyService companyService;
+    private BookingPolicies bookingPolicies;
+    private BookingService bookingService;
+
+
+    @Mock
+    private CalendarService calendarService;
+    @Mock
+    private HotelService hotelService;
+
+
+    @Before
+    public void setup(){
+
+        companyService = new CompanyService();
+
+        companyService.addEmployee(COMPANY_ID, EMPLOYEE_ID);
+
+        bookingPolicies = new BookingPolicies(companyService);
+        bookingService = new BookingService(hotelService, bookingPolicies, calendarService);
+
+
+        when(hotelService.setRoomType(HOTEL_ID, ALLOWED_ROOM_TYPE, 1)).thenReturn(true);
+        when(calendarService.isBookingAllowed(null, null, ALLOWED_ROOM_TYPE, HOTEL_ID)).thenReturn(true);
+
+    }
+
+
+    @Test
+    public void booking_with_policies_non_existing_employee_returns_false(){
+
+        bookingPolicies.setEmployeePolicy(NON_EXISTING_EMPLOYEE, ALLOWED_ROOM_TYPE);
+        isBookingAllow = bookingService.book(NON_EXISTING_EMPLOYEE, HOTEL_ID, ALLOWED_ROOM_TYPE, null, null);
+        assertFalse(isBookingAllow);
+
+    }
+
+    @Test
+    public void booking_with_policies_existing_employee_not_allowed_room_returns_false(){
+
+        bookingPolicies.setEmployeePolicy(EMPLOYEE_ID, ALLOWED_ROOM_TYPE);
+        isBookingAllow = bookingService.book(EMPLOYEE_ID, HOTEL_ID, NOT_ALLOWED_ROOM_TYPE, null, null);
+        assertFalse(isBookingAllow);
+
+    }
+
+    @Test
+    public void booking_with_policies_existing_employee_allowed_room_returns_true(){
+
+        bookingPolicies.setEmployeePolicy(EMPLOYEE_ID, ALLOWED_ROOM_TYPE);
+        isBookingAllow = bookingService.book(EMPLOYEE_ID, HOTEL_ID, ALLOWED_ROOM_TYPE, null, null);
+        assertTrue(isBookingAllow);
+
+    }
+
+    @Test
+    public void booking_with_company_policy_room_not_allowed_returns_false(){
+
+        bookingPolicies.setCompanyPolicy(COMPANY_ID, ROOM_TYPE_1);
+        isBookingAllow = bookingService.book(EMPLOYEE_ID, HOTEL_ID, ROOM_TYPE_2, null, null);
+        assertFalse(isBookingAllow);
+
+    }
+
+
+    @Test
+    public void booking_with_company_and_employee_policy_returns_true(){
+
+        bookingPolicies.setCompanyPolicy(COMPANY_ID, ROOM_TYPE_2);
+        bookingPolicies.setEmployeePolicy(EMPLOYEE_ID, ROOM_TYPE_1);
+        isBookingAllow = bookingService.book(EMPLOYEE_ID, HOTEL_ID, ROOM_TYPE_1, null, null);
+        assertTrue(isBookingAllow);
+
+    }
+
+    //TEST POLICIES EMPLOYEE WITHOUT COMPANY POLICIES
+
+    //EMPLOYEE                   BOOKING
+    //Employee:No,  Room:Yes     Employee:No,  Hotel:Yes, Room:Yes --> FALSE
+    //Employee:Yes, Room:Yes     Employee:Yes, Hotel:Yes, Room:No  --> FALSE
+    //Employee:Yes, Room:Yes     Employee:Yes, Hotel:Yes, Room:Yes --> TRUE
+
+
+    //TEST POLICIES WITH COMPANY POLICIES
+
+    //EMPLOYEE                      COMPANY                    BOOKING
+    //Employee:Yes, Room:2          Company:Yes, Room:1        Employee:Yes,  Hotel:Yes, Room:2 --> FALSE
+    //Employee:Yes, Room:2          Company:Yes, Room:2        Employee:Yes,  Hotel:Yes, Room:2 --> TRUE
+
+
+    //TEST POLICIES  EMPLOYEE WITH COMPANY POLICIES
+
+    //EMPLOYEE                      COMPANY                    BOOKING
+    //Employee:Yes, Room:2          Company:Yes, Room:1        Employee:Yes,  Hotel:Yes, Room:2 --> FALSE (w/o employee policy)
+    //Employee:Yes, Room:1          Company:Yes, Room:2        Employee:Yes,  Hotel:Yes, Room:2 --> TRUE
+
+}
